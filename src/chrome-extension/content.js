@@ -171,10 +171,6 @@ async function applyTheme() {
 		updatePreservationRules(settings);
 		document.documentElement.classList.add('dms-enabled');
 	});
-	chrome.runtime.sendMessage({
-		action: "changeIcon",
-		theme: "dark"
-	});
 	localStorage.setItem('dmsState', 'enabled');
 }
 
@@ -183,10 +179,6 @@ async function removeTheme() {
     if (enabled && !isExcluded) return;
 
 	document.documentElement.classList.remove('dms-enabled');
-	chrome.runtime.sendMessage({
-		action: "changeIcon",
-		theme: "light"
-	});
 	localStorage.removeItem('dmsState');
 }
 

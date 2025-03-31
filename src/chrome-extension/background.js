@@ -20,6 +20,13 @@ chrome.runtime.onInstalled.addListener(() => {
 	});
 });
 
+chrome.runtime.onStartup.addListener(() => {
+    chrome.storage.sync.get(['enabled'], (data) => {
+        currentTheme = data.enabled ? 'dark' : 'light';
+        updateExtensionIcon(currentTheme);
+    });
+});
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 	if (isValidTab(tab)) allTabs.add(tabId);
 	if (changeInfo.status === 'complete' && isValidTab(tab)) {
@@ -54,20 +61,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-	if (request.action === "changeIcon") {
-		var iconPath = request.theme === "dark" ? chrome.runtime.getURL("icons/icon-dark-16.png") : chrome.runtime.getURL("icons/icon-light-16.png");
-		chrome.action.setIcon({
-			path: iconPath
-		}, () => {
-			if (chrome.runtime.lastError) {
-				console.error(chrome.runtime.lastError);
-			}
-		});
-
-		sendResponse({
-			success: true
-		});
-	} else if (request.action === 'forceUpdateAllTabs') {
+	if (request.action === 'forceUpdateAllTabs') {
         chrome.storage.sync.get(['enabled', 'exclusions'], (storage) => {
             chrome.tabs.query({}, (tabs) => {
                 tabs.forEach(tab => {
@@ -117,9 +111,23 @@ chrome.commands.onCommand.addListener((command) => {
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
 	if (changes.enabled) {
-		updateAllTabs(changes.enabled.newValue);
-	}
+        var newTheme = changes.enabled.newValue ? 'dark' : 'light';
+        updateExtensionIcon(newTheme);
+        currentTheme = newTheme;
+    }
 });
+
+function updateExtensionIcon(theme) {
+    const iconPath = theme === 'dark' 
+        ? chrome.runtime.getURL("icons/icon-dark-16.png")
+        : chrome.runtime.getURL("icons/icon-light-16.png");
+    
+    chrome.action.setIcon({ path: iconPath }, () => {
+        if (chrome.runtime.lastError) {
+            console.error('Icon update failed:', chrome.runtime.lastError);
+        }
+    });
+}
 
 async function injectContentScript(tabId) {
 	try {
