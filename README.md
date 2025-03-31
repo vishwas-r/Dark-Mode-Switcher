@@ -1,6 +1,8 @@
 # Dark Mode Switcher
 A Browser extension that enables dark mode on any website with smart handling of media elements and customizable settings.
 
+![Dark Mode Switcher - Chrome Extension](https://vishwas-r.github.io/Dark-Mode-Switcher/screenshots/chrome-extension-light.png)
+
 ## Key Features
 
 ### 🌓 Global Theme Toggle
@@ -68,4 +70,4 @@ This extension:
 This project is licensed under the GPL License - see the LICENSE file for details.
 
 ----
-Made with ❤️ for better browsing in the dark!
+<p align="center">Made with ❤️ for better browsing in the dark!</p>
