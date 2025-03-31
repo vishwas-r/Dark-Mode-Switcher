@@ -102,24 +102,21 @@ document.addEventListener('DOMContentLoaded', function () {
 	});
 
 	function addExclusion() {
-		var domain = exclusionInput.value.trim();
+    var domain = exclusionInput.value.trim();
+    if (!domain) return;
 
-		if (domain) {
-			chrome.storage.sync.get(['exclusions'], function (data) {
-				var exclusions = data.exclusions || [];
-				if (!exclusions.includes(domain)) {
-					exclusions.push(domain);
-					chrome.storage.sync.set({
-						exclusions
-					});
-
-					populateExclusionList(exclusions);
-					exclusionInput.value = '';
-					refreshAllTabs();
-				}
-			});
-		}
-	}
+    chrome.storage.sync.get(['exclusions'], function (data) {
+        var exclusions = data.exclusions || [];
+        if (!exclusions.includes(domain)) {
+            exclusions.push(domain);
+            chrome.storage.sync.set({ exclusions }, () => {
+                populateExclusionList(exclusions);
+                exclusionInput.value = '';
+                refreshAllTabs();  // Ensure all tabs are updated
+            });
+        }
+    });
+}
 
 	addExclusionBtn.addEventListener('click', addExclusion);
 
@@ -180,11 +177,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	function refreshAllTabs() {
 		chrome.storage.sync.get(['enabled', 'exclusions'], function (data) {
-			themeToggle.checked = data.enabled;
-			chrome.runtime.sendMessage({
-				action: 'forceUpdateAllTabs',
-				enabled: data.enabled
-			});
+            themeToggle.checked = data.enabled;
+            chrome.runtime.sendMessage({ 
+                action: 'forceUpdateAllTabs',
+                enabled: data.enabled,
+                exclusions: data.exclusions || []
+            });
+
 			chrome.tabs.query({}, function (tabs) {
 				tabs.forEach(function (tab) {
 					try {

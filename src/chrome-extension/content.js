@@ -144,7 +144,22 @@ function isDarkColor(color) {
 	return false;
 }
 
-function applyTheme() {
+function checkExclusionStatus() {
+    return new Promise(resolve => {
+        chrome.storage.sync.get(['enabled', 'exclusions'], data => {
+            const domain = window.location.hostname;
+            const isExcluded = (data.exclusions || []).some(exclusion => 
+                domain === exclusion || domain.endsWith(`.${exclusion}`)
+            );
+            resolve({ enabled: data.enabled, isExcluded });
+        });
+    });
+}
+
+async function applyTheme() {
+    var { enabled, isExcluded } = await checkExclusionStatus();
+    if (!enabled || isExcluded) return;
+
 	createDarkModeStyles();
 
 	chrome.storage.sync.get([
@@ -163,7 +178,10 @@ function applyTheme() {
 	localStorage.setItem('dmsState', 'enabled');
 }
 
-function removeTheme() {
+async function removeTheme() {
+    var { enabled, isExcluded } = await checkExclusionStatus();
+    if (enabled && !isExcluded) return;
+
 	document.documentElement.classList.remove('dms-enabled');
 	chrome.runtime.sendMessage({
 		action: "changeIcon",
@@ -173,36 +191,28 @@ function removeTheme() {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-	try {
-		if (request.action === 'applyTheme') {
-			applyTheme();
-			sendResponse({
-				success: true
-			});
-		} else if (request.action === 'removeTheme') {
-			removeTheme();
-			sendResponse({
-				success: true
-			});
-		} else if (request.action === 'toggleTheme') {
-			var isEnabled = document.documentElement.classList.contains('dms-enabled');
-			if (isEnabled) {
-				removeTheme();
-			} else {
-				applyTheme();
-			}
-			sendResponse({
-				success: true
-			});
-		}
-		return true; // Keep channel open for async response
-	} catch (error) {
-		console.error("Error processing message:", error);
-		sendResponse({
-			success: false,
-			error: error.message
-		});
-	}
+    try {
+        if (request.action === 'applyTheme' || request.action === 'removeTheme') {
+            // Always verify current exclusion status
+            chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {
+                const domain = window.location.hostname;
+                const isExcluded = (data.exclusions || []).some(exclusion =>
+                    domain === exclusion || domain.endsWith(`.${exclusion}`)
+                );
+
+                if (data.enabled && !isExcluded) {
+                    applyTheme();
+                } else {
+                    removeTheme();
+                }
+            });
+            sendResponse({ success: true });
+        }
+        return true;
+    } catch (error) {
+        console.error("Error processing message:", error);
+        sendResponse({ success: false, error: error.message });
+    }
 });
 
 chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {

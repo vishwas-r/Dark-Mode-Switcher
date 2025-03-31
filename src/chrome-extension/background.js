@@ -68,11 +68,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 			success: true
 		});
 	} else if (request.action === 'forceUpdateAllTabs') {
-		updateAllTabs(request.enabled);
-		sendResponse({
-			success: true
-		});
-	}
+        chrome.tabs.query({}, (tabs) => {
+            tabs.forEach(tab => {
+                if (!tab.url || tab.url.startsWith('chrome://')) return;
+
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ['content.js']
+                }, () => {
+                    chrome.tabs.sendMessage(tab.id, {
+                        action: request.enabled ? 'applyTheme' : 'removeTheme',
+                        exclusions: request.exclusions
+                    }).catch(error => {
+                        console.log(`Tab ${tab.id} not ready:`, error);
+                    });
+                });
+            });
+        });
+        sendResponse({ success: true });
+    }
 	return true;
 });
 
