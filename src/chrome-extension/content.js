@@ -147,8 +147,8 @@ function isDarkColor(color) {
 function checkExclusionStatus() {
     return new Promise(resolve => {
         chrome.storage.sync.get(['enabled', 'exclusions'], data => {
-            const domain = window.location.hostname;
-            const isExcluded = (data.exclusions || []).some(exclusion => 
+            var domain = window.location.hostname;
+            var isExcluded = (data.exclusions || []).some(exclusion => 
                 domain === exclusion || domain.endsWith(`.${exclusion}`)
             );
             resolve({ enabled: data.enabled, isExcluded });
@@ -191,28 +191,20 @@ async function removeTheme() {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    try {
-        if (request.action === 'applyTheme' || request.action === 'removeTheme') {
-            // Always verify current exclusion status
-            chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {
-                const domain = window.location.hostname;
-                const isExcluded = (data.exclusions || []).some(exclusion =>
-                    domain === exclusion || domain.endsWith(`.${exclusion}`)
-                );
+    chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {
+        var domain = window.location.hostname;
+        var isExcluded = (data.exclusions || []).some(exclusion =>
+            domain === exclusion || domain.endsWith(`.${exclusion}`)
+        );
 
-                if (data.enabled && !isExcluded) {
-                    applyTheme();
-                } else {
-                    removeTheme();
-                }
-            });
-            sendResponse({ success: true });
+        if (data.enabled && !isExcluded) {
+            applyTheme();
+        } else {
+            removeTheme();
         }
-        return true;
-    } catch (error) {
-        console.error("Error processing message:", error);
-        sendResponse({ success: false, error: error.message });
-    }
+        sendResponse({ success: true });
+    });
+    return true;
 });
 
 chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {

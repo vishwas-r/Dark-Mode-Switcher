@@ -68,19 +68,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 			success: true
 		});
 	} else if (request.action === 'forceUpdateAllTabs') {
-        chrome.tabs.query({}, (tabs) => {
-            tabs.forEach(tab => {
-                if (!tab.url || tab.url.startsWith('chrome://')) return;
+        chrome.storage.sync.get(['enabled', 'exclusions'], (storage) => {
+            chrome.tabs.query({}, (tabs) => {
+                tabs.forEach(tab => {
+                    if (!isValidTab(tab)) return;
+                    
+                    let isExcluded = false;
+                    try {
+                        var domain = new URL(tab.url).hostname;
+                        isExcluded = storage.exclusions.some(exclusion => 
+                            domain === exclusion || domain.endsWith(`.${exclusion}`)
+                        );
+                    } catch (error) {
+                        console.warn('Invalid URL:', tab.url);
+                    }
 
-                chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    files: ['content.js']
-                }, () => {
-                    chrome.tabs.sendMessage(tab.id, {
-                        action: request.enabled ? 'applyTheme' : 'removeTheme',
-                        exclusions: request.exclusions
-                    }).catch(error => {
-                        console.log(`Tab ${tab.id} not ready:`, error);
+                    var action = storage.enabled && !isExcluded 
+                        ? 'applyTheme' 
+                        : 'removeTheme';
+
+                    chrome.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        files: ['content.js']
+                    }, () => {
+                        chrome.tabs.sendMessage(tab.id, { action })
+                            .catch(error => console.log(`Tab ${tab.id} update skipped`));
                     });
                 });
             });
@@ -93,7 +105,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.commands.onCommand.addListener((command) => {
 	if (command === "toggle-dark-mode") {
 		chrome.storage.sync.get(['enabled'], (data) => {
-			const newState = !data.enabled;
+			var newState = !data.enabled;
 			chrome.storage.sync.set({
 				enabled: newState
 			}, () => {
@@ -127,9 +139,9 @@ async function injectContentScript(tabId) {
 }
 
 async function updateAllTabs(enabled) {
-	const tabs = await chrome.tabs.query({});
+	var tabs = await chrome.tabs.query({});
 
-	for (const tab of tabs) {
+	for (var tab of tabs) {
 		if (!isValidTab(tab)) continue;
 
 		try {

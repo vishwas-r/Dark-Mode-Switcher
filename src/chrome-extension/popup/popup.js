@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		chrome.storage.sync.set({
 			preserveImages: preserveImages.checked
 		});
+		showLoadingState();
 		refreshAllTabs();
 	});
 
@@ -84,6 +85,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		chrome.storage.sync.set({
 			preserveVideos: preserveVideos.checked
 		});
+		showLoadingState();
 		refreshAllTabs();
 	});
 
@@ -91,6 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		chrome.storage.sync.set({
 			preserveCanvas: preserveCanvas.checked
 		});
+		showLoadingState();
 		refreshAllTabs();
 	});
 
@@ -98,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		chrome.storage.sync.set({
 			smartInversion: smartInversion.checked
 		});
+		showLoadingState();
 		refreshAllTabs();
 	});
 
@@ -112,6 +116,7 @@ document.addEventListener('DOMContentLoaded', function () {
             chrome.storage.sync.set({ exclusions }, () => {
                 populateExclusionList(exclusions);
                 exclusionInput.value = '';
+				showLoadingState();
                 refreshAllTabs();  // Ensure all tabs are updated
             });
         }
@@ -170,70 +175,97 @@ document.addEventListener('DOMContentLoaded', function () {
 				exclusions: updatedExclusions
 			});
 			populateExclusionList(updatedExclusions);
-
+			showLoadingState();
 			refreshAllTabs();
 		});
 	}
 
+	var refreshTimeout;
 	function refreshAllTabs() {
-		chrome.storage.sync.get(['enabled', 'exclusions'], function (data) {
-            themeToggle.checked = data.enabled;
-            chrome.runtime.sendMessage({ 
-                action: 'forceUpdateAllTabs',
-                enabled: data.enabled,
-                exclusions: data.exclusions || []
-            });
+		clearTimeout(refreshTimeout);
 
-			chrome.tabs.query({}, function (tabs) {
-				tabs.forEach(function (tab) {
-					try {
-						if (!tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("about:") || tab.url.startsWith("file://")) {
-							return; // Skip unsupported pages
-						}
+		refreshTimeout = setTimeout(() => {
+			chrome.storage.sync.get(['enabled', 'exclusions'], function (data) {
+				themeToggle.checked = data.enabled;
+				chrome.runtime.sendMessage({
+					action: 'forceUpdateAllTabs',
+					enabled: data.enabled,
+					exclusions: data.exclusions
+				});
 
-						var url = new URL(tab.url);
-						var domain = url.hostname;
-						var exclusions = data.exclusions || [];
-						var isExcluded = exclusions.some(exclusion =>
-							domain === exclusion || domain.endsWith('.' + exclusion)
-						);
-
-						var action = (data.enabled && !isExcluded) ? 'applyTheme' : 'removeTheme';
-
+				chrome.tabs.query({}, function (tabs) {
+					tabs.forEach(function (tab) {
 						try {
-							chrome.scripting.executeScript({
-								target: {
-									tabId: tab.id
-								},
-								files: ["content.js"]
-							}, () => {
-								if (chrome.runtime.lastError) {
-									console.warn(`Skipping tab ${tab.id}: ${chrome.runtime.lastError.message}`);
-									return;
-								}
-								try {
-									chrome.tabs.sendMessage(tab.id, {
-										action
-									}, (response) => {
-										if (chrome.runtime.lastError) {
-											console.warn(`Error sending message to tab ${tab.id}: ${chrome.runtime.lastError.message}`);
-										} else {
-											console.log(`Message sent to tab ${tab.id}:`, response);
-										}
-									});
-								} catch (sendError) {
-									console.error(`Failed to send message to tab ${tab.id}:`, sendError);
-								}
-							});
-						} catch (scriptError) {
-							console.error(`Failed to inject script into tab ${tab.id}:`, scriptError);
-						}
+							if (!tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("about:") || tab.url.startsWith("file://")) {
+								return; // Skip unsupported pages
+							}
 
-					} catch (tabError) {
-						console.error("Error processing tab:", tab.id, tabError);
-					}
+							var url = new URL(tab.url);
+							var domain = url.hostname;
+							var exclusions = data.exclusions || [];
+							var isExcluded = exclusions.some(exclusion =>
+								domain === exclusion || domain.endsWith('.' + exclusion)
+							);
+
+							var action = (data.enabled && !isExcluded) ? 'applyTheme' : 'removeTheme';
+
+							try {
+								chrome.scripting.executeScript({
+									target: {
+										tabId: tab.id
+									},
+									files: ["content.js"]
+								}, () => {
+									if (chrome.runtime.lastError) {
+										console.warn(`Skipping tab ${tab.id}: ${chrome.runtime.lastError.message}`);
+										return;
+									}
+									try {
+										chrome.tabs.sendMessage(tab.id, {
+											action
+										}, (response) => {
+											if (chrome.runtime.lastError) {
+												console.warn(`Error sending message to tab ${tab.id}: ${chrome.runtime.lastError.message}`);
+											} else {
+												console.log(`Message sent to tab ${tab.id}:`, response);
+											}
+										});
+									} catch (sendError) {
+										console.error(`Failed to send message to tab ${tab.id}:`, sendError);
+									}
+								});
+							} catch (scriptError) {
+								console.error(`Failed to inject script into tab ${tab.id}:`, scriptError);
+							}
+
+						} catch (tabError) {
+							console.error("Error processing tab:", tab.id, tabError);
+						}
+					});
 				});
 			});
+		}, 300);
+	}
+
+	function showLoadingState() {
+		exclusionList.classList.add('updating');
+		
+		var interactiveElements = exclusionList.querySelectorAll('button, input, select, a');
+		interactiveElements.forEach(element => {
+			element.setAttribute('disabled', 'true');
+			if (element.tagName === 'A') {
+				element.style.pointerEvents = 'none';
+			}
 		});
+		
+		setTimeout(() => {
+			exclusionList.classList.remove('updating');
+			interactiveElements.forEach(element => {
+				element.removeAttribute('disabled');
+				if (element.tagName === 'A') {
+					element.style.pointerEvents = '';
+				}
+			});
+		}, 500);
 	}
 });
