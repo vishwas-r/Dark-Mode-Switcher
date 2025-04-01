@@ -4,7 +4,6 @@ function createDarkModeStyles() {
     if (document.getElementById('dms-styles')) {
         return;
     }
-
     var style = document.createElement('style');
     style.id = 'dms-styles';
     style.textContent = `
@@ -12,7 +11,6 @@ function createDarkModeStyles() {
         filter: invert(100%) hue-rotate(180deg);
       }
     `;
-
     document.head.appendChild(style);
 }
 
@@ -126,7 +124,7 @@ function isDarkColor(color) {
 
 function checkExclusionStatus() {
     return new Promise(resolve => {
-        chrome.storage.sync.get(['enabled', 'exclusions'], data => {
+        browser.storage.sync.get(['enabled', 'exclusions']).then(data => {
             var domain = window.location.hostname;
             var isExcluded = (data.exclusions || []).some(exclusion => 
                 domain === exclusion || domain.endsWith(`.${exclusion}`)
@@ -139,78 +137,70 @@ function checkExclusionStatus() {
 async function applyTheme() {
     var { enabled, isExcluded } = await checkExclusionStatus();
     if (!enabled || isExcluded) return;
-    
     createDarkModeStyles();
-    chrome.storage.sync.get([
+    browser.storage.sync.get([
         'preserveImages',
         'preserveVideos',
         'preserveCanvas',
         'smartInversion'
-    ], (settings) => {
+    ]).then((settings) => {
         updatePreservationRules(settings);
         document.documentElement.classList.add('dms-enabled');
     });
-    
     // Only send icon change message if state has actually changed
     if (currentThemeState !== 'dark') {
-        chrome.runtime.sendMessage({
+        browser.runtime.sendMessage({
             action: "changeIcon",
             theme: "dark"
-        });
+        }).catch(error => console.error("Error sending message:", error));
         currentThemeState = 'dark';
     }
-    
     localStorage.setItem('dmsState', 'enabled');
 }
 
 async function removeTheme() {
     var { enabled, isExcluded } = await checkExclusionStatus();
     if (enabled && !isExcluded) return;
-    
     document.documentElement.classList.remove('dms-enabled');
-    
     // Only send icon change message if state has actually changed
     if (currentThemeState !== 'light') {
-        chrome.runtime.sendMessage({
+        browser.runtime.sendMessage({
             action: "changeIcon",
             theme: "light"
-        });
+        }).catch(error => console.error("Error sending message:", error));
         currentThemeState = 'light';
     }
-    
     localStorage.removeItem('dmsState');
 }
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((request, sender) => {
     if (request.action === 'applyTheme') {
         applyTheme();
-        sendResponse({ success: true });
+        return Promise.resolve({ success: true });
     } else if (request.action === 'removeTheme') {
         removeTheme();
-        sendResponse({ success: true });
+        return Promise.resolve({ success: true });
     } else {
-        chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {
+        return browser.storage.sync.get(['enabled', 'exclusions']).then((data) => {
             var domain = window.location.hostname;
             var isExcluded = (data.exclusions || []).some(exclusion =>
-                domain === exclusion || domain.endsWith(`.${exclusion}`)
+                domain === exclusion || domain.endsWith('.' + exclusion)
             );
             if (data.enabled && !isExcluded) {
                 applyTheme();
             } else {
                 removeTheme();
             }
-            sendResponse({ success: true });
+            return { success: true };
         });
     }
-    return true;
 });
 
 (async function init() {
     if (localStorage.getItem('dmsState') === 'enabled') {
         applyTheme();
     }
-    
-    chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {
+    browser.storage.sync.get(['enabled', 'exclusions']).then((data) => {
         if (data.enabled) {
             var domain = window.location.hostname;
             var exclusions = data.exclusions || [];

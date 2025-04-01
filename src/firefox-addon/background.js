@@ -2,16 +2,16 @@ var allTabs = new Set();
 var iconChangeTimeout = null;
 var currentIconTheme = null;
 
-chrome.tabs.onCreated.addListener(tab => {
+browser.tabs.onCreated.addListener(tab => {
     if (isValidTab(tab)) allTabs.add(tab.id);
 });
 
-chrome.tabs.onRemoved.addListener(tabId => {
+browser.tabs.onRemoved.addListener(tabId => {
     allTabs.delete(tabId);
 });
 
-chrome.runtime.onInstalled.addListener(() => {
-    chrome.storage.sync.set({
+browser.runtime.onInstalled.addListener(() => {
+    browser.storage.sync.set({
         enabled: false,
         preserveImages: true,
         preserveVideos: true,
@@ -20,22 +20,21 @@ chrome.runtime.onInstalled.addListener(() => {
         exclusions: [],
         uiTheme: 'light'
     });
-
     setIconTheme('light');
 });
 
-chrome.runtime.onStartup.addListener(() => {
-    chrome.storage.sync.get(['enabled'], (data) => {
+browser.runtime.onStartup.addListener(() => {
+    browser.storage.sync.get(['enabled']).then((data) => {
         setIconTheme(data.enabled ? 'dark' : 'light');
     });
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (isValidTab(tab)) allTabs.add(tabId);
     if (changeInfo.status === 'complete' && isValidTab(tab)) {
         try {
             if (isValidTab(tab)) allTabs.add(tabId);
-            chrome.storage.sync.get(['enabled', 'exclusions'], (data) => {
+            browser.storage.sync.get(['enabled', 'exclusions']).then((data) => {
                 if (!data.enabled) return;
                 var domain;
                 try {
@@ -49,9 +48,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     domain === exclusion || domain.endsWith(`.${exclusion}`)
                 );
                 var action = isExcluded ? 'removeTheme' : 'applyTheme';
-                chrome.tabs.sendMessage(tabId, {
+                browser.tabs.sendMessage(tabId, {
                     action
-                });
+                }).catch(error => console.log(`Message to tab ${tabId} failed: ${error.message}`));
             });
         } catch (error) {
             console.error('Error processing tab update:', error);
@@ -59,16 +58,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "changeIcon") {
         setIconTheme(request.theme);
-        sendResponse({ success: true });
+        return Promise.resolve({ success: true });
     } else if (request.action === 'forceUpdateAllTabs') {
-        chrome.storage.sync.get(['enabled', 'exclusions'], (storage) => {
-            chrome.tabs.query({}, (tabs) => {
+        browser.storage.sync.get(['enabled', 'exclusions']).then((storage) => {
+            browser.tabs.query({}).then((tabs) => {
                 tabs.forEach(tab => {
                     if (!isValidTab(tab)) return;
-                    
                     var isExcluded = false;
                     try {
                         var domain = new URL(tab.url).hostname;
@@ -81,28 +79,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     var action = storage.enabled && !isExcluded 
                         ? 'applyTheme' 
                         : 'removeTheme';
-                    chrome.scripting.executeScript({
+                    browser.scripting.executeScript({
                         target: { tabId: tab.id },
                         files: ['content.js']
-                    }, () => {
-                        chrome.tabs.sendMessage(tab.id, { action })
-                            .catch(error => console.log(`Tab ${tab.id} update skipped`));
-                    });
+                    }).then(() => {
+                        browser.tabs.sendMessage(tab.id, { action })
+                            .catch(error => console.log(`Tab ${tab.id} update skipped: ${error.message}`));
+                    }).catch(error => console.log(`Script injection failed for tab ${tab.id}: ${error.message}`));
                 });
             });
         });
-        sendResponse({ success: true });
+        return Promise.resolve({ success: true });
     }
-    return true;
 });
 
-chrome.commands.onCommand.addListener((command) => {
+browser.commands.onCommand.addListener((command) => {
     if (command === "toggle-dark-mode") {
-        chrome.storage.sync.get(['enabled'], (data) => {
+        browser.storage.sync.get(['enabled']).then((data) => {
             var newState = !data.enabled;
-            chrome.storage.sync.set({
+            browser.storage.sync.set({
                 enabled: newState
-            }, () => {
+            }).then(() => {
                 updateAllTabs(newState);
                 setIconTheme(newState ? 'dark' : 'light');
             });
@@ -110,7 +107,7 @@ chrome.commands.onCommand.addListener((command) => {
     }
 });
 
-chrome.storage.onChanged.addListener((changes, namespace) => {
+browser.storage.onChanged.addListener((changes, namespace) => {
     if (changes.enabled) {
         updateAllTabs(changes.enabled.newValue);
         setIconTheme(changes.enabled.newValue ? 'dark' : 'light');
@@ -120,57 +117,52 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 function setIconTheme(theme) {
     // If it's the same theme, do nothing
     if (theme === currentIconTheme) return;
-    
     if (iconChangeTimeout) {
         clearTimeout(iconChangeTimeout);
     }
-    
     iconChangeTimeout = setTimeout(() => {
         var iconPath = theme === "dark" 
-            ? chrome.runtime.getURL("icons/icon-dark-16.png") 
-            : chrome.runtime.getURL("icons/icon-light-16.png");
-            
-        chrome.action.setIcon({ path: iconPath }, () => {
-            if (chrome.runtime.lastError) {
-                console.error(chrome.runtime.lastError);
-            }
+            ? browser.runtime.getURL("icons/icon-dark-16.png") 
+            : browser.runtime.getURL("icons/icon-light-16.png");
+        browser.action.setIcon({ path: iconPath }).catch(error => {
+            console.error("Error setting icon:", error);
+        }).finally(() => {
             currentIconTheme = theme;
         });
-        
         iconChangeTimeout = null;
     }, 300);
 }
 
 async function injectContentScript(tabId) {
     try {
-        await chrome.scripting.executeScript({
+        await browser.scripting.executeScript({
             target: {
                 tabId
             },
             files: ['content.js']
         });
-        chrome.tabs.sendMessage(tabId, {
+        browser.tabs.sendMessage(tabId, {
             action: 'applyTheme'
-        });
+        }).catch(error => console.error(`Message to tab ${tabId} failed:`, error));
     } catch (error) {
         console.error('Failed to inject content script:', error);
     }
 }
 
 async function updateAllTabs(enabled) {
-    var tabs = await chrome.tabs.query({});
+    var tabs = await browser.tabs.query({});
     for (var tab of tabs) {
         if (!isValidTab(tab)) continue;
         try {
-            await chrome.scripting.executeScript({
+            await browser.scripting.executeScript({
                 target: {
                     tabId: tab.id
                 },
                 files: ['content.js']
             });
-            chrome.tabs.sendMessage(tab.id, {
+            browser.tabs.sendMessage(tab.id, {
                 action: enabled ? 'applyTheme' : 'removeTheme'
-            });
+            }).catch(error => console.error(`Message to tab ${tab.id} failed:`, error));
         } catch (error) {
             console.error(`Tab ${tab.id} update failed:`, error);
         }
@@ -178,5 +170,5 @@ async function updateAllTabs(enabled) {
 }
 
 function isValidTab(tab) {
-    return tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('about:');
+    return tab.url && !tab.url.startsWith('about:') && !tab.url.startsWith('moz-extension:');
 }

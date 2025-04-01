@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A simple dark mode switcher for Firefox that inverts colors and preserves important elements.">
+<meta name="keywords" content="dark mode, firefox addon, theme switcher, night mode, invert colors">
+<meta name="author" content="Vishwas R">
+<meta name="theme-color" content="#000000">
+<title>Dark Mode Switcher</title>
+<link rel="stylesheet" href="popup.css">
+<link rel="icon" href="../icons/icon-light-16.png" type="image/png">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <img src="../icons/icon-light-48.png" alt="Dark Mode Switcher Logo" class="dms-icon">
+        <h1>Dark Mode Switcher</h1>
+    </div>
+    <div class="toggle-container">
+        <span class="mode-label">Light</span>
+        <label class="switch">
+        <input type="checkbox" id="themeToggle">
+        <span class="slider round"></span>
+        </label>
+        <span class="mode-label">Dark</span>
+    </div>
+    <div class="section options">
+        <h2>Settings</h2>
+        <div class="option-item">
+            <label>
+            <input type="checkbox" id="preserveImages">
+            Preserve images
+            </label>
+        </div>
+        <div class="option-item">
+            <label>
+            <input type="checkbox" id="preserveVideos">
+            Preserve videos
+            </label>
+        </div>
+        <div class="option-item">
+            <label>
+            <input type="checkbox" id="preserveCanvas">
+            Preserve canvas elements
+            </label>
+        </div>
+        <div class="option-item">
+            <label>
+            <input type="checkbox" id="smartInversion">
+            Smart color inversion
+            </label>
+        </div>
+    </div>
+    <div class="section exclusions">
+        <h2>Exclusion List</h2>
+        <div class="exclusion-item">
+            <input type="text" id="exclusionInput" placeholder="example.com">
+            <button id="addExclusion">Add</button>
+        </div>
+        <ul id="exclusionList"></ul>
+    </div>
+    <div class="footer">
+        <div class="attribution">
+            <p>Crafted with <span class="heart">❤️</span> by <a href="https://vishwas.me" target="_blank">Vishwas.R</a></p>
+        </div>
+        <div class="toggle-ui">
+            <span>UI</span>
+            <label class="switch switch-small">
+            <input type="checkbox" id="uiToggle">
+            <span class="slider round"></span>
+            </label>
+        </div>
+    </div>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

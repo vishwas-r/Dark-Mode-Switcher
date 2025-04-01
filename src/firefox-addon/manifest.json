@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Dark Mode Switcher",
+  "version": "1.0.0",
+  "description": "Switch between light and dark themes instantly on any website.",
+  "author": "Vishwas.R",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "dark-mode-switcher@example.com"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-light-16.png",
+    "48": "icons/icon-light-48.png",
+    "128": "icons/icon-light-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-light-16.png",
+      "48": "icons/icon-light-48.png",
+      "128": "icons/icon-light-128.png"
+    },
+    "default_title": "Dark Mode Switcher"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "commands": {
+    "toggle-dark-mode": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Toggle dark mode on the current tab"
+    }
+  }
+}
